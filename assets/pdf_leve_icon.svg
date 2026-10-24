@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3d352c"/>
+      <stop offset="0.55" stop-color="#2d2721"/>
+      <stop offset="1" stop-color="#201c18"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.22" cy="0.12" r="0.85">
+      <stop offset="0" stop-color="#fff1d6" stop-opacity="0.16"/>
+      <stop offset="0.55" stop-color="#fff1d6" stop-opacity="0.03"/>
+      <stop offset="1" stop-color="#fff1d6" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="page" x1="0" y1="0" x2="0.25" y2="1">
+      <stop offset="0" stop-color="#fffdf7"/>
+      <stop offset="0.62" stop-color="#fbf3e5"/>
+      <stop offset="1" stop-color="#f3e7d3"/>
+    </linearGradient>
+    <linearGradient id="fold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f0e2cb"/>
+      <stop offset="1" stop-color="#dcc8a8"/>
+    </linearGradient>
+    <linearGradient id="ribbon" x1="0" y1="0" x2="1" y2="0.4">
+      <stop offset="0" stop-color="#d99a3f"/>
+      <stop offset="0.55" stop-color="#bf7420"/>
+      <stop offset="1" stop-color="#9c5712"/>
+    </linearGradient>
+    <linearGradient id="feather" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#b06a1a"/>
+      <stop offset="0.55" stop-color="#d29a45"/>
+      <stop offset="1" stop-color="#e9c27a"/>
+    </linearGradient>
+    <filter id="tileShadow" x="-20%" y="-15%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#100d0a" flood-opacity="0.42"/>
+    </filter>
+    <filter id="pageShadow" x="-30%" y="-20%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#120e0a" flood-opacity="0.38"/>
+    </filter>
+    <filter id="ribbonShadow" x="-60%" y="-20%" width="220%" height="150%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#120e0a" flood-opacity="0.35"/>
+    </filter>
+    <filter id="featherShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#2a1b09" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#tileShadow)">
+    <rect x="48" y="48" width="928" height="928" rx="214" fill="url(#tile)"/>
+    <rect x="48" y="48" width="928" height="928" rx="214" fill="url(#glow)"/>
+    <rect x="50.5" y="50.5" width="923" height="923" rx="211.5" fill="none" stroke="#5a4d3d" stroke-opacity="0.55" stroke-width="5"/>
+  </g>
+
+  <g filter="url(#pageShadow)">
+    <path d="M 354 208 H 598 L 702 312 V 784 Q 702 816 670 816 H 354 Q 322 816 322 784 V 240 Q 322 208 354 208 Z" fill="url(#page)"/>
+    <path d="M 598 208 V 312 H 702 Z" fill="url(#fold)"/>
+    <path d="M 598 208 V 312 H 702" fill="none" stroke="#c9b492" stroke-opacity="0.85" stroke-width="3" stroke-linejoin="round"/>
+    <path d="M 598 312 H 322" fill="none" stroke="#d8c6a8" stroke-opacity="0.55" stroke-width="2"/>
+  </g>
+
+  <g filter="url(#ribbonShadow)">
+    <path d="M 492 208 H 540 V 422 L 516 396 L 492 422 Z" fill="url(#ribbon)"/>
+    <path d="M 492 208 H 540" stroke="#f6d9a4" stroke-opacity="0.35" stroke-width="3"/>
+  </g>
+
+  <g fill="#d6c6ab">
+    <rect x="362" y="486" width="196" height="20" rx="10"/>
+    <rect x="362" y="546" width="258" height="20" rx="10" fill="#cbb89a"/>
+    <rect x="362" y="606" width="152" height="20" rx="10"/>
+    <rect x="362" y="666" width="218" height="20" rx="10"/>
+  </g>
+</svg>

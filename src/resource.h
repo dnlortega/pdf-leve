@@ -1,0 +1,9 @@
+#ifndef PDF_LEVE_RESOURCE_H
+#define PDF_LEVE_RESOURCE_H
+
+#define IDI_APP 1
+#define IDD_PASSWORD 101
+#define IDC_PASSWORD 1002
+#define IDC_PASSWORD_MSG 1003
+
+#endif
