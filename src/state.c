@@ -181,6 +181,12 @@ static int parse_state(const char *text, State *state)
 			state->maximized = atoi(line + 10);
 		} else if (strncmp(line, "dark=", 5) == 0) {
 			state->dark = atoi(line + 5) ? 1 : 0;
+		} else if (strncmp(line, "sidebar=", 8) == 0) {
+			state->sidebar = atoi(line + 8) ? 1 : 0;
+		} else if (strncmp(line, "ui_scale=", 9) == 0) {
+			state->ui_scale = atoi(line + 9);
+		} else if (strncmp(line, "text_size=", 10) == 0) {
+			state->text_size = atoi(line + 10);
 		} else if (strncmp(line, "recent=", 7) == 0) {
 			if (state->recent_count < MAX_RECENTS) {
 				if (split_recent(line + 7, &state->recents[state->recent_count]))
@@ -204,6 +210,9 @@ void state_load(State *state)
 	state->last_fit = FIT_WIDTH;
 	state->window.right = 0;
 	state->window.bottom = 0;
+	state->sidebar = 1;
+	state->ui_scale = 100;
+	state->text_size = 17;
 	state_path(path, 1024);
 	file = _wfopen(path, L"rb");
 	if (!file)
@@ -234,6 +243,11 @@ void state_load(State *state)
 	if (state->last_fit < 0 || state->last_fit > FIT_PAGE)
 		state->last_fit = FIT_WIDTH;
 	state->last_rotation = ((state->last_rotation % 360) + 360) % 360;
+	if (state->ui_scale != 110 && state->ui_scale != 125)
+		state->ui_scale = 100;
+	if (state->text_size != 15 && state->text_size != 17 &&
+		state->text_size != 19 && state->text_size != 21)
+		state->text_size = 17;
 }
 
 static void write_recent(FILE *file, const Recent *recent)
@@ -287,6 +301,9 @@ void state_save(const State *state)
 		(long)(state->window.bottom - state->window.top));
 	fprintf(file, "maximized=%d\n", state->maximized);
 	fprintf(file, "dark=%d\n", state->dark ? 1 : 0);
+	fprintf(file, "sidebar=%d\n", state->sidebar ? 1 : 0);
+	fprintf(file, "ui_scale=%d\n", state->ui_scale);
+	fprintf(file, "text_size=%d\n", state->text_size);
 	for (i = 0; i < state->recent_count; i++)
 		write_recent(file, &state->recents[i]);
 	fclose(file);

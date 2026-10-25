@@ -25,6 +25,9 @@
 #define fz_drop_page mu_p_fz_drop_page
 #define fz_drop_document mu_p_fz_drop_document
 #define fz_page_label mu_p_fz_page_label
+#define fz_load_outline mu_p_fz_load_outline
+#define fz_drop_outline mu_p_fz_drop_outline
+#define fz_resolve_link mu_p_fz_resolve_link
 #define fz_scale mu_p_fz_scale
 #define fz_rotate mu_p_fz_rotate
 #define fz_concat mu_p_fz_concat

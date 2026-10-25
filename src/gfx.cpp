@@ -29,6 +29,14 @@ static int g_page_w;
 static int g_page_h;
 static unsigned long long g_page_id;
 
+#define GFX_THUMB_SLOTS 24
+
+static ID3D11Texture2D *g_thumb_texture[GFX_THUMB_SLOTS];
+static ID3D11ShaderResourceView *g_thumb_view[GFX_THUMB_SLOTS];
+static int g_thumb_w[GFX_THUMB_SLOTS];
+static int g_thumb_h[GFX_THUMB_SLOTS];
+static unsigned long long g_thumb_id[GFX_THUMB_SLOTS];
+
 static void release_target(void)
 {
 	if (g_target) {
@@ -96,6 +104,7 @@ static int create_device(HWND hwnd)
 
 static void destroy_device(void)
 {
+	gfx_thumbs_reset();
 	if (g_page_view) {
 		g_page_view->Release();
 		g_page_view = NULL;
@@ -351,6 +360,80 @@ int gfx_page_texture(const unsigned char *bgra, int width, int height, int strid
 unsigned long long gfx_page_texture_id(void)
 {
 	return g_page_id;
+}
+
+int gfx_thumb_texture(int slot, const unsigned char *bgra, int width, int height, int stride)
+{
+	D3D11_TEXTURE2D_DESC desc;
+	D3D11_SUBRESOURCE_DATA data;
+	ID3D11Texture2D *texture = NULL;
+	ID3D11ShaderResourceView *view = NULL;
+	HRESULT hr;
+
+	if (!g_device || !bgra || slot < 0 || slot >= GFX_THUMB_SLOTS ||
+		width < 1 || height < 1)
+		return 0;
+	if (g_thumb_texture[slot] && g_thumb_w[slot] == width && g_thumb_h[slot] == height) {
+		g_context->UpdateSubresource(g_thumb_texture[slot], 0, NULL, bgra, (UINT)stride, 0);
+		g_thumb_id[slot] = (unsigned long long)(uintptr_t)g_thumb_view[slot];
+		return 1;
+	}
+
+	ZeroMemory(&desc, sizeof(desc));
+	desc.Width = (UINT)width;
+	desc.Height = (UINT)height;
+	desc.MipLevels = 1;
+	desc.ArraySize = 1;
+	desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	desc.SampleDesc.Count = 1;
+	desc.Usage = D3D11_USAGE_DEFAULT;
+	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	ZeroMemory(&data, sizeof(data));
+	data.pSysMem = bgra;
+	data.SysMemPitch = (UINT)stride;
+	hr = g_device->CreateTexture2D(&desc, &data, &texture);
+	if (FAILED(hr) || !texture)
+		return 0;
+	hr = g_device->CreateShaderResourceView(texture, NULL, &view);
+	if (FAILED(hr) || !view) {
+		texture->Release();
+		return 0;
+	}
+	if (g_thumb_view[slot])
+		g_thumb_view[slot]->Release();
+	if (g_thumb_texture[slot])
+		g_thumb_texture[slot]->Release();
+	g_thumb_texture[slot] = texture;
+	g_thumb_view[slot] = view;
+	g_thumb_w[slot] = width;
+	g_thumb_h[slot] = height;
+	g_thumb_id[slot] = (unsigned long long)(uintptr_t)view;
+	return 1;
+}
+
+unsigned long long gfx_thumb_texture_id(int slot)
+{
+	if (slot < 0 || slot >= GFX_THUMB_SLOTS)
+		return 0;
+	return g_thumb_id[slot];
+}
+
+void gfx_thumbs_reset(void)
+{
+	int i;
+	for (i = 0; i < GFX_THUMB_SLOTS; i++) {
+		if (g_thumb_view[i]) {
+			g_thumb_view[i]->Release();
+			g_thumb_view[i] = NULL;
+		}
+		if (g_thumb_texture[i]) {
+			g_thumb_texture[i]->Release();
+			g_thumb_texture[i] = NULL;
+		}
+		g_thumb_w[i] = 0;
+		g_thumb_h[i] = 0;
+		g_thumb_id[i] = 0;
+	}
 }
 
 int gfx_wndproc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)

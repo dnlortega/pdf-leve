@@ -14,6 +14,9 @@ int gfx_render(int r, int g, int b, const wchar_t *capture_path);
 int gfx_resize(int width, int height);
 int gfx_page_texture(const unsigned char *bgra, int width, int height, int stride);
 unsigned long long gfx_page_texture_id(void);
+int gfx_thumb_texture(int slot, const unsigned char *bgra, int width, int height, int stride);
+unsigned long long gfx_thumb_texture_id(int slot);
+void gfx_thumbs_reset(void);
 int gfx_wndproc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 
 #ifdef __cplusplus

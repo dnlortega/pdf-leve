@@ -28,6 +28,7 @@ void doc_init(Doc *d)
 	memset(d, 0, sizeof(*d));
 	d->zoom = 1.0f;
 	d->fit = FIT_WIDTH;
+	d->ui = 1.0f;
 	d->ctx = mu_new_context();
 }
 
@@ -167,11 +168,12 @@ int doc_open(Doc *d, const wchar_t *path, const char *password, wchar_t *err, si
 	return DOC_OK;
 }
 
-void doc_set_viewport(Doc *d, int width, int height, int dpi)
+void doc_set_viewport(Doc *d, int width, int height, int dpi, float ui)
 {
 	d->view_w = width > 0 ? width : 1;
 	d->view_h = height > 0 ? height : 1;
 	d->dpi = dpi > 0 ? dpi : 96;
+	d->ui = ui > 0.0f ? ui : 1.0f;
 }
 
 static int ensure_page(Doc *d)
@@ -207,7 +209,7 @@ float doc_fit_zoom(Doc *d)
 	bounds = rotated_bounds(d);
 	if (bounds.x1 <= bounds.x0 || bounds.y1 <= bounds.y0)
 		return 1.0f;
-	float margin = (float)MulDiv(VIEW_MARGIN, d->dpi, 96);
+	float margin = (float)VIEW_MARGIN * d->ui;
 	avail_w = (float)d->view_w - margin * 2.0f;
 	avail_h = (float)d->view_h - margin * 2.0f;
 	if (avail_w < 80.0f)
@@ -587,4 +589,188 @@ int doc_render_png(Doc *d, int dpi, const wchar_t *path)
 	fz_drop_pixmap(d->ctx, pix);
 	free(upath);
 	return ok;
+}
+
+int doc_render_thumb(Doc *d, int page, int max_w, int max_h,
+	unsigned char **pixels, int *width, int *height, int *stride)
+{
+	fz_page *page_obj = NULL;
+	fz_page *temp = NULL;
+	fz_pixmap *pix = NULL;
+	fz_device *dev = NULL;
+	fz_rect bounds, transformed;
+	fz_matrix ctm, draw;
+	fz_irect ibox;
+	unsigned char *copy = NULL;
+	unsigned char *samples;
+	float scale_x, scale_y, scale;
+	int w = 0, h = 0, pix_stride = 0;
+	int row;
+	int ok = 0;
+
+	if (!d->doc || page < 0 || page >= d->page_count || max_w < 1 || max_h < 1 ||
+		!pixels)
+		return 0;
+	*pixels = NULL;
+	if (width)
+		*width = 0;
+	if (height)
+		*height = 0;
+	if (stride)
+		*stride = 0;
+
+	fz_var(temp);
+	fz_var(page_obj);
+	fz_var(pix);
+	fz_var(dev);
+	fz_var(copy);
+	fz_var(w);
+	fz_var(h);
+	fz_var(pix_stride);
+	fz_var(ok);
+
+	if (page == d->page && d->page_obj) {
+		page_obj = d->page_obj;
+	} else {
+		fz_try(d->ctx) {
+			temp = fz_load_page(d->ctx, d->doc, page);
+		}
+		fz_catch(d->ctx) {
+			temp = NULL;
+		}
+		page_obj = temp;
+	}
+	if (!page_obj)
+		return 0;
+
+	bounds = fz_bound_page(d->ctx, page_obj);
+	if (d->rotation)
+		bounds = fz_transform_rect(bounds, fz_rotate((float)d->rotation));
+	if (bounds.x1 <= bounds.x0 || bounds.y1 <= bounds.y0)
+		goto done;
+	scale_x = (float)max_w / (bounds.x1 - bounds.x0);
+	scale_y = (float)max_h / (bounds.y1 - bounds.y0);
+	scale = scale_x < scale_y ? scale_x : scale_y;
+	if (scale <= 0.0f)
+		goto done;
+	ctm = fz_concat(fz_rotate((float)d->rotation), fz_scale(scale, scale));
+	transformed = fz_transform_rect(fz_bound_page(d->ctx, page_obj), ctm);
+	ibox = fz_round_rect(transformed);
+	w = ibox.x1 - ibox.x0;
+	h = ibox.y1 - ibox.y0;
+	if (w < 1 || h < 1)
+		goto done;
+	draw = fz_concat(ctm, fz_translate((float)-ibox.x0, (float)-ibox.y0));
+
+	fz_try(d->ctx) {
+		pix = fz_new_pixmap(d->ctx, fz_device_bgr(d->ctx), w, h, NULL, 1);
+		fz_clear_pixmap_with_value(d->ctx, pix, 255);
+		dev = fz_new_draw_device(d->ctx, draw, pix);
+		fz_run_page(d->ctx, page_obj, dev, fz_scale(1.0f, 1.0f), NULL);
+		fz_close_device(d->ctx, dev);
+		fz_drop_device(d->ctx, dev);
+		dev = NULL;
+		pix_stride = fz_pixmap_stride(d->ctx, pix);
+		samples = fz_pixmap_samples(d->ctx, pix);
+		copy = (unsigned char *)malloc((size_t)w * (size_t)h * 4);
+		if (!copy)
+			fz_throw(d->ctx, FZ_ERROR_GENERIC, "memória insuficiente para a miniatura");
+		for (row = 0; row < h; row++)
+			memcpy(copy + (size_t)row * (size_t)w * 4,
+				samples + (size_t)row * (size_t)pix_stride, (size_t)w * 4);
+		ok = 1;
+	}
+	fz_always(d->ctx) {
+		fz_drop_device(d->ctx, dev);
+	}
+	fz_catch(d->ctx) {
+		free(copy);
+		copy = NULL;
+		ok = 0;
+	}
+	fz_drop_pixmap(d->ctx, pix);
+	pix = NULL;
+
+done:
+	if (temp)
+		fz_drop_page(d->ctx, temp);
+	if (!ok)
+		return 0;
+	*pixels = copy;
+	if (width)
+		*width = w;
+	if (height)
+		*height = h;
+	if (stride)
+		*stride = w * 4;
+	return 1;
+}
+
+static void outline_collect(Doc *d, fz_outline *item, int depth,
+	DocOutlineItem *items, int max_items, int *count)
+{
+	fz_var(item);
+	while (item && *count < max_items) {
+		DocOutlineItem *out = &items[*count];
+		wchar_t *wide;
+		int page = -1;
+
+		if (item->page.chapter == 0 && item->page.page >= 0) {
+			page = item->page.page;
+		} else if (item->uri && item->uri[0]) {
+			float x = 0.0f;
+			float y = 0.0f;
+			fz_location loc;
+			fz_var(loc);
+			fz_try(d->ctx) {
+				loc = fz_resolve_link(d->ctx, d->doc, item->uri, &x, &y);
+			}
+			fz_catch(d->ctx) {
+				loc.chapter = -1;
+				loc.page = -1;
+			}
+			if (loc.chapter == 0 && loc.page >= 0)
+				page = loc.page;
+		}
+		if (page < 0 || page >= d->page_count)
+			page = -1;
+
+		memset(out, 0, sizeof(*out));
+		out->page = page;
+		out->depth = depth;
+		wide = mu_utf8_to_wide_alloc(item->title ? item->title : "");
+		if (wide) {
+			wcsncpy(out->title, wide, 255);
+			out->title[255] = 0;
+			free(wide);
+		}
+		if (!out->title[0])
+			wcscpy(out->title, L"Sem título");
+		(*count)++;
+		if (item->down)
+			outline_collect(d, item->down, depth < 7 ? depth + 1 : depth,
+				items, max_items, count);
+		item = item->next;
+	}
+}
+
+int doc_load_outline(Doc *d, DocOutlineItem *items, int max_items)
+{
+	fz_outline *outline = NULL;
+	int count = 0;
+
+	if (!d->doc || !items || max_items < 1)
+		return 0;
+	fz_var(outline);
+	fz_try(d->ctx) {
+		outline = fz_load_outline(d->ctx, d->doc);
+	}
+	fz_catch(d->ctx) {
+		outline = NULL;
+	}
+	if (!outline)
+		return 0;
+	outline_collect(d, outline, 0, items, max_items, &count);
+	fz_drop_outline(d->ctx, outline);
+	return count;
 }

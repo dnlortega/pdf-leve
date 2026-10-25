@@ -14,6 +14,7 @@ else
 fi
 BUILD="$ROOT/build"
 OBJ="$BUILD/obj"
+OUT="${PDFLEVE_OUT:-$BUILD/PDFLeve.exe}"
 
 mkdir -p "$OBJ"
 cd "$ROOT"
@@ -55,7 +56,7 @@ echo "Compilando PDF Leve..."
 echo "  WINDRES resources.rc"
 "$WINDRES" -I "$ROOT" "$ROOT/resources.rc" -O coff -o "$OBJ/resources.o"
 
-for name in main app ui_imgui doc state ocr mu; do
+for name in main app ui_imgui doc state ocr gemini mu; do
   build_c "src/$name.c" "$OBJ/$name.o"
 done
 
@@ -69,14 +70,14 @@ build_cpp third_party/cimgui/imgui/imgui_demo.cpp "$OBJ/imgui_demo.o"
 build_cpp third_party/cimgui/imgui/backends/imgui_impl_win32.cpp "$OBJ/imgui_impl_win32.o"
 build_cpp third_party/cimgui/imgui/backends/imgui_impl_dx11.cpp "$OBJ/imgui_impl_dx11.o"
 
-echo "  LINK  build/PDFLeve.exe"
+echo "  LINK  ${OUT#$ROOT/}"
 "$CXX" -municode -mwindows -static-libgcc -static-libstdc++ "${STRIP[@]}" \
-  -o "$BUILD/PDFLeve.exe" \
+  -o "$OUT" \
   "$OBJ/main.o" "$OBJ/app.o" "$OBJ/ui_imgui.o" "$OBJ/doc.o" "$OBJ/state.o" "$OBJ/ocr.o" \
-  "$OBJ/mu.o" "$OBJ/gfx.o" "$OBJ/cimgui.o" "$OBJ/imgui.o" "$OBJ/imgui_draw.o" \
+  "$OBJ/gemini.o" "$OBJ/mu.o" "$OBJ/gfx.o" "$OBJ/cimgui.o" "$OBJ/imgui.o" "$OBJ/imgui_draw.o" \
   "$OBJ/imgui_tables.o" "$OBJ/imgui_widgets.o" "$OBJ/imgui_demo.o" "$OBJ/imgui_impl_win32.o" \
   "$OBJ/imgui_impl_dx11.o" "$OBJ/resources.o" \
   -ld3d11 -ldxgi -ld3dcompiler -lwindowscodecs -lgdi32 -luser32 -lshell32 -lole32 -luuid \
-  -lcomdlg32 -lshlwapi -ldwmapi -lcomctl32
+  -lcomdlg32 -lshlwapi -ldwmapi -lcomctl32 -lwinhttp -lcrypt32
 
-echo "Pronto: $BUILD/PDFLeve.exe"
+echo "Pronto: $OUT"

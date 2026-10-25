@@ -9,6 +9,7 @@
 #include <wchar.h>
 
 #include "app.h"
+#include "gemini.h"
 #include "gfx.h"
 #include "mu.h"
 #include "ocr.h"
@@ -19,7 +20,10 @@
 #define DWMWA_WINDOW_CORNER_PREFERENCE 33
 #endif
 
+#define APP_COPYDATA_OPEN 0x5044464CUL /* "PDFL" */
+
 static App g_app;
+static HANDLE g_instance_mutex;
 static int g_shot_mode;
 static int g_shot_done;
 static wchar_t g_shot_path[1024];
@@ -27,7 +31,17 @@ static int g_shot_width = 1280;
 static int g_shot_height = 860;
 static int g_force_dark = -1;
 static int g_start_page = -1;
-static wchar_t g_start_doc[1024];
+static int g_start_ai;
+static int g_start_about;
+static int g_start_splash;
+static int g_start_sidebar;
+static int g_start_outline;
+static int g_start_settings;
+static int g_start_scale;
+static int g_start_text;
+static int g_start_find;
+static wchar_t g_start_docs[MAX_TABS][1024];
+static int g_start_doc_count;
 
 static int scaled(int value, int dpi)
 {
@@ -144,12 +158,104 @@ static void parse_args(void)
 			g_force_dark = 1;
 		} else if (wcscmp(arg, L"--light") == 0) {
 			g_force_dark = 0;
-		} else if (arg[0] != L'-' && !g_start_doc[0]) {
-			wcsncpy(g_start_doc, arg, 1023);
-			g_start_doc[1023] = 0;
+		} else if (wcscmp(arg, L"--ai") == 0) {
+			g_start_ai = 1;
+		} else if (wcscmp(arg, L"--about") == 0) {
+			g_start_about = 1;
+		} else if (wcscmp(arg, L"--splash") == 0) {
+			g_start_splash = 1;
+		} else if (wcscmp(arg, L"--sidebar") == 0) {
+			g_start_sidebar = 1;
+		} else if (wcscmp(arg, L"--outline") == 0) {
+			g_start_sidebar = 1;
+			g_start_outline = 1;
+		} else if (wcscmp(arg, L"--settings") == 0) {
+			g_start_settings = 1;
+		} else if (wcscmp(arg, L"--find") == 0) {
+			g_start_find = 1;
+		} else if (wcscmp(arg, L"--scale") == 0 && i + 1 < argc) {
+			int value = _wtoi(argv[++i]);
+			if (value == 100 || value == 110 || value == 125)
+				g_start_scale = value;
+		} else if (wcscmp(arg, L"--text") == 0 && i + 1 < argc) {
+			int value = _wtoi(argv[++i]);
+			if (value == 15 || value == 17 || value == 19 || value == 21)
+				g_start_text = value;
+		} else if (arg[0] != L'-' && g_start_doc_count < MAX_TABS) {
+			wcsncpy(g_start_docs[g_start_doc_count], arg, 1023);
+			g_start_docs[g_start_doc_count][1023] = 0;
+			g_start_doc_count++;
 		}
 	}
 	LocalFree(argv);
+}
+
+static void focus_instance(HWND target)
+{
+	if (!target)
+		return;
+	if (IsIconic(target))
+		ShowWindowAsync(target, SW_RESTORE);
+	SetForegroundWindow(target);
+}
+
+static int forward_to_running_instance(void)
+{
+	HWND target = NULL;
+	DWORD pid = 0;
+	int i;
+
+	/* The first instance may still be creating its window. */
+	for (i = 0; i < 100 && !target; i++) {
+		target = FindWindowW(APP_CLASS, NULL);
+		if (!target)
+			Sleep(50);
+	}
+	if (!target)
+		return 0;
+
+	GetWindowThreadProcessId(target, &pid);
+	if (pid)
+		AllowSetForegroundWindow(pid);
+	focus_instance(target);
+
+	for (i = 0; i < g_start_doc_count; i++) {
+		COPYDATASTRUCT data;
+		data.dwData = APP_COPYDATA_OPEN;
+		data.cbData = (DWORD)((wcslen(g_start_docs[i]) + 1) * sizeof(wchar_t));
+		data.lpData = g_start_docs[i];
+		SendMessageTimeoutW(target, WM_COPYDATA, 0, (LPARAM)&data,
+			SMTO_ABORTIFHUNG | SMTO_BLOCK, 10000, NULL);
+	}
+	focus_instance(target);
+	return 1;
+}
+
+static void open_forwarded_path(COPYDATASTRUCT *data)
+{
+	const wchar_t *src;
+	wchar_t path[1024];
+	size_t chars;
+	size_t len = 0;
+
+	if (!data || data->dwData != APP_COPYDATA_OPEN || !data->lpData)
+		return;
+	if (data->cbData < sizeof(wchar_t) ||
+		data->cbData > 4096 * sizeof(wchar_t))
+		return;
+	chars = data->cbData / sizeof(wchar_t);
+	src = (const wchar_t *)data->lpData;
+	while (len < chars && src[len])
+		len++;
+	if (len >= chars || len >= 1024)
+		return;
+	memcpy(path, src, len * sizeof(wchar_t));
+	path[len] = 0;
+	if (path[0] && !g_app.password_pending)
+		app_open_path(&g_app, path);
+	if (IsIconic(g_app.hwnd))
+		ShowWindow(g_app.hwnd, SW_RESTORE);
+	SetForegroundWindow(g_app.hwnd);
 }
 
 static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
@@ -203,6 +309,7 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpar
 		MONITORINFO monitor;
 		HMONITOR handle = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
 		int dpi = g_app.dpi > 0 ? g_app.dpi : 96;
+		int ui_pct = g_app.ui_scale_pct > 0 ? g_app.ui_scale_pct : 100;
 		monitor.cbSize = sizeof(monitor);
 		if (GetMonitorInfoW(handle, &monitor)) {
 			info->ptMaxPosition.x = monitor.rcWork.left - monitor.rcMonitor.left;
@@ -212,8 +319,8 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpar
 			info->ptMaxTrackSize.x = info->ptMaxSize.x;
 			info->ptMaxTrackSize.y = info->ptMaxSize.y;
 		}
-		info->ptMinTrackSize.x = scaled(760, dpi);
-		info->ptMinTrackSize.y = scaled(560, dpi);
+		info->ptMinTrackSize.x = MulDiv(scaled(880, dpi), ui_pct, 100);
+		info->ptMinTrackSize.y = MulDiv(scaled(560, dpi), ui_pct, 100);
 		return 0;
 	}
 	case WM_SIZE:
@@ -232,7 +339,8 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpar
 		int dpi = HIWORD(wparam) ? HIWORD(wparam) : LOWORD(wparam);
 		if (dpi > 0) {
 			g_app.dpi = dpi;
-			g_app.ui = (float)dpi / 96.0f;
+			g_app.ui = (float)dpi / 96.0f *
+				(float)(g_app.ui_scale_pct > 0 ? g_app.ui_scale_pct : 100) / 100.0f;
 		}
 		SetWindowPos(hwnd, NULL, suggested->left, suggested->top,
 			suggested->right - suggested->left, suggested->bottom - suggested->top,
@@ -244,9 +352,12 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpar
 	case WM_DROPFILES: {
 		HDROP drop = (HDROP)wparam;
 		UINT count = DragQueryFileW(drop, 0xFFFFFFFF, NULL, 0);
-		if (count > 0) {
+		UINT i;
+		for (i = 0; i < count; i++) {
 			wchar_t path[1024];
-			if (DragQueryFileW(drop, 0, path, 1024))
+			if (g_app.password_pending)
+				break;
+			if (DragQueryFileW(drop, i, path, 1024))
 				app_open_path(&g_app, path);
 		}
 		DragFinish(drop);
@@ -256,6 +367,15 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpar
 	case WM_APP_OCR_DONE:
 		app_ocr_done(&g_app, (OcrResult *)lparam);
 		return 0;
+	case WM_APP_GEMINI_DONE:
+		app_ai_done(&g_app, (GeminiResult *)lparam);
+		return 0;
+	case WM_COPYDATA:
+		if (lparam && ((COPYDATASTRUCT *)lparam)->dwData == APP_COPYDATA_OPEN) {
+			open_forwarded_path((COPYDATASTRUCT *)lparam);
+			return TRUE;
+		}
+		break;
 	case WM_CLOSE:
 		save_window_placement();
 		DestroyWindow(hwnd);
@@ -296,6 +416,16 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE previous, PWSTR command, int show)
 	(void)show;
 
 	parse_args();
+	if (!g_shot_mode) {
+		g_instance_mutex = CreateMutexW(NULL, FALSE,
+			L"Local\\PdfLeveSingleInstance");
+		if (g_instance_mutex && GetLastError() == ERROR_ALREADY_EXISTS) {
+			if (forward_to_running_instance()) {
+				CloseHandle(g_instance_mutex);
+				return 0;
+			}
+		}
+	}
 	com = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
 	if (!mu_load()) {
 		const wchar_t *detail = mu_error();
@@ -357,6 +487,12 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE previous, PWSTR command, int show)
 	app_init(&g_app, inst, hwnd);
 	if (g_force_dark >= 0)
 		g_app.state.dark = g_force_dark;
+	if (g_start_scale)
+		app_set_ui_scale(&g_app, g_start_scale);
+	if (g_start_text) {
+		g_app.text_size = g_start_text;
+		g_app.state.text_size = g_start_text;
+	}
 	if (g_shot_mode)
 		g_app.saving_disabled = 1;
 
@@ -385,14 +521,34 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE previous, PWSTR command, int show)
 		SetWindowPos(hwnd, NULL, rect.left, rect.top, rect.right - rect.left,
 			rect.bottom - rect.top, SWP_NOZORDER | SWP_NOACTIVATE);
 
-	if (g_start_doc[0]) {
-		app_open_path(&g_app, g_start_doc);
-	} else if (!g_shot_mode && boot.last_file[0] &&
-		GetFileAttributesW(boot.last_file) != INVALID_FILE_ATTRIBUTES) {
-		app_load_document(&g_app, boot.last_file, NULL);
+	{
+		int i;
+		for (i = 0; i < g_start_doc_count; i++) {
+			if (g_app.password_pending)
+				break;
+			app_open_path(&g_app, g_start_docs[i]);
+		}
 	}
 	if (g_start_page >= 0 && g_app.doc.doc)
 		app_goto_page(&g_app, g_start_page);
+	if (g_start_ai && !g_app.password_pending)
+		app_ai_open_modal(&g_app);
+	if (g_start_about && !g_app.password_pending)
+		ui_show_about();
+	if (g_start_splash && !g_app.password_pending)
+		ui_show_splash();
+	if (g_start_sidebar) {
+		g_app.sidebar_open = 1;
+		g_app.sb_follow = 1;
+		if (g_start_outline)
+			g_app.sidebar_tab = 1;
+	}
+	if (g_start_settings)
+		ui_show_settings();
+	if (g_start_find && g_app.doc.doc) {
+		g_app.find_open = 1;
+		g_app.focus_find = 1;
+	}
 
 	while (running) {
 		const wchar_t *capture = NULL;

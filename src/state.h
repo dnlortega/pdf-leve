@@ -29,6 +29,9 @@ typedef struct State {
 	RECT window;
 	int maximized;
 	int dark;
+	int sidebar;
+	int ui_scale;
+	int text_size;
 } State;
 
 void state_load(State *state);

@@ -25,6 +25,12 @@ enum {
 	FIT_PAGE = 2
 };
 
+typedef struct DocOutlineItem {
+	wchar_t title[256];
+	int page;
+	int depth;
+} DocOutlineItem;
+
 typedef struct Doc {
 	fz_context *ctx;
 	fz_document *doc;
@@ -43,6 +49,7 @@ typedef struct Doc {
 	int view_w;
 	int view_h;
 	int dpi;
+	float ui;
 
 	float scale;
 	float shrink;
@@ -74,7 +81,10 @@ int doc_selection_quads(Doc *d, fz_point a, fz_point b, fz_quad *quads, int max_
 int doc_word_at(Doc *d, fz_point point, fz_point *a, fz_point *b, fz_quad *quad);
 int doc_search_page(Doc *d, int page, const char *needle, fz_quad *quads, int max_quads);
 int doc_render_png(Doc *d, int dpi, const wchar_t *path);
-void doc_set_viewport(Doc *d, int width, int height, int dpi);
+int doc_render_thumb(Doc *d, int page, int max_w, int max_h,
+	unsigned char **pixels, int *width, int *height, int *stride);
+int doc_load_outline(Doc *d, DocOutlineItem *items, int max_items);
+void doc_set_viewport(Doc *d, int width, int height, int dpi, float ui);
 float doc_fit_zoom(Doc *d);
 void doc_rotate(Doc *d, int degrees);
 void doc_invalidate(Doc *d);

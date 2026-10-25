@@ -27,6 +27,9 @@
 	X(fz_drop_page) \
 	X(fz_drop_document) \
 	X(fz_page_label) \
+	X(fz_load_outline) \
+	X(fz_drop_outline) \
+	X(fz_resolve_link) \
 	X(fz_scale) \
 	X(fz_rotate) \
 	X(fz_concat) \

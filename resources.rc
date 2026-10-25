@@ -5,8 +5,8 @@
 1 24 "src/app.manifest"
 
 1 VERSIONINFO
-FILEVERSION 1,0,0,0
-PRODUCTVERSION 1,0,0,0
+FILEVERSION 1,1,0,0
+PRODUCTVERSION 1,1,0,0
 FILEFLAGSMASK 0x3fL
 FILEFLAGS 0x0L
 FILEOS 0x40004L
@@ -19,12 +19,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Daniel Ortega Pereira\0"
             VALUE "FileDescription", "PDF Leve - leitor de PDF leve e rapido\0"
-            VALUE "FileVersion", "1.0.0.0\0"
+            VALUE "FileVersion", "1.1.0.0\0"
             VALUE "InternalName", "PDFLeve\0"
             VALUE "LegalCopyright", "(c) 2026 Daniel Ortega Pereira\0"
             VALUE "OriginalFilename", "PDFLeve.exe\0"
             VALUE "ProductName", "PDF Leve\0"
-            VALUE "ProductVersion", "1.0.0.0\0"
+            VALUE "ProductVersion", "1.1.0.0\0"
             VALUE "Comments", "Desenvolvido por Daniel Ortega Pereira - LinkedIn: linkedin.com/in/daniel-op - WhatsApp: +55 14 98129-4913\0"
         END
     END
